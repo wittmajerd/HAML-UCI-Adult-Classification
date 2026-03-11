@@ -200,6 +200,7 @@ if __name__ == "__main__":
         sensitive_cols=SENSITIVE_COLS,
         fairness_mode=FairnessMode.NONE,
     )
+    # TODO: label encode categorical features
     ready_folds = onehot_encode_prepared_folds(ready_folds)
 
     print("Num folds:", len(ready_folds))
