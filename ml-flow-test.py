@@ -18,8 +18,9 @@ def ml_flow_train(X_train, y_train):
     # Enable autologging for scikit-learn
     mlflow.sklearn.autolog()
 
-    gbr = HistGradientBoostingClassifier(random_state=42)
-    gbr.fit(X_train, y_train)
+    with mlflow.start_run():
+        gbr = HistGradientBoostingClassifier(random_state=42)
+        gbr.fit(X_train, y_train)
 
 if __name__ == "__main__":
     adult_df = pd.read_csv("data/adult.csv")
