@@ -4,13 +4,11 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 
-# from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import StratifiedKFold, cross_validate
 
 
 TARGET_COL = "income"
@@ -104,15 +102,7 @@ def _manual_reweighing(y, sensitive_df):
     return np.asarray(weights, dtype=float)
 
 
-# Base sklearn model inheritor - move preprocessing into fit
-# sklearn pipeline can be used
-# 1 stratified kfold
-# 2 training but we do the prepocesseng steps in the fit method of the meta model, 
-# so we can do the reweighing and onehot encoding there, 
-# and then call the base model fit with the processed data and sample weights if needed
-# this way the order of preprocessing steps is preserved and we can easily switch between different fairness modes without changing the fold preparation logic
-# 3 evaluation - sklearn pipeline takes care of this
-class MetaModel:
+class MetaModel(ClassifierMixin, BaseEstimator):
     def __init__(
         self,
         base_model,
@@ -124,7 +114,7 @@ class MetaModel:
 
         self.base_model = base_model
         self.fairness_mode = fairness_mode
-        self.sensitive_cols = list(sensitive_cols) if sensitive_cols is not None else list(SENSITIVE_COLS)
+        self.sensitive_cols = sensitive_cols if sensitive_cols is not None else list(SENSITIVE_COLS)
         self.feature_columns_ = None
         # One-hot encoding is always applied via pd.get_dummies.
         # Numeric scaling is applied only for LogisticRegression to keep behavior consistent across models.
@@ -217,6 +207,8 @@ class MetaModel:
         else:
             self.base_model.fit(X_train, y_train)
 
+        self.classes_ = self.base_model.classes_
+
         return self
 
     def predict(self, X):
@@ -228,8 +220,6 @@ class MetaModel:
         return self.base_model.predict_proba(X_prepared)
 
 
-
-# %%
 if __name__ == "__main__":
     adult_df = pd.read_csv("data/adult.csv")
 
@@ -242,21 +232,25 @@ if __name__ == "__main__":
     X = clean_df.drop(columns=[TARGET_COL])
     y = clean_df[TARGET_COL].astype(int)
 
-    # Ez az egész lehet sklearn pipeline is a MetaModel custom modellel
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X, y), start=1):
-        X_train = X.iloc[train_idx].reset_index(drop=True)
-        y_train = y.iloc[train_idx].reset_index(drop=True)
-        X_test = X.iloc[test_idx].reset_index(drop=True)
-        y_test = y.iloc[test_idx].reset_index(drop=True)
+    est = MetaModel(
+        # base_model=LogisticRegression(max_iter=1000, random_state=42),
+        # base_model=RandomForestClassifier(n_estimators=100, random_state=42),
+        base_model=GradientBoostingClassifier(n_estimators=100, random_state=42),
+        fairness_mode=FairnessMode.NONE,   # NONE/DROP/MASK/REWEIGH
+        sensitive_cols=SENSITIVE_COLS,
+    )
 
-        model = MetaModel(
-            base_model=LogisticRegression(max_iter=10),
-            fairness_mode=FairnessMode.REWEIGH,
-            sensitive_cols=SENSITIVE_COLS,
-        )
+    scoring = {
+        "acc": "accuracy",
+        "f1": "f1",
+        "auc": "roc_auc",
+    }
 
-        model.fit(X_train, y_train)
-        score = model.base_model.score(model._prepare_inference_X(X_test), y_test)
-        print(f"Fold {fold_idx}: accuracy={score:.4f}")
+    res = cross_validate(est, X, y, cv=cv, scoring=scoring, n_jobs=-1)
+
+    print(f"Accuracy: {res['test_acc'].mean():.4f} (+/- {res['test_acc'].std() * 2:.4f})")
+    print(f"F1-Score: {res['test_f1'].mean():.4f} (+/- {res['test_f1'].std() * 2:.4f})")
+    print(f"AUC: {res['test_auc'].mean():.4f} (+/- {res['test_auc'].std() * 2:.4f})")
+
