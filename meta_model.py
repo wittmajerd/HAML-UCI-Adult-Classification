@@ -3,7 +3,13 @@ from enum import Enum
 
 import numpy as np
 import pandas as pd
+
+# from sklearn.base import BaseEstimator
 from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.model_selection import StratifiedKFold
 
 
@@ -112,9 +118,6 @@ class MetaModel:
         base_model,
         fairness_mode: FairnessMode = FairnessMode.NONE,
         sensitive_cols=None,
-        label_encode=False,
-        scale_numeric=False,
-        one_hot_encode=False,
     ):
         if not isinstance(fairness_mode, FairnessMode):
             raise TypeError("fairness_mode must be FairnessMode enum")
@@ -123,10 +126,9 @@ class MetaModel:
         self.fairness_mode = fairness_mode
         self.sensitive_cols = list(sensitive_cols) if sensitive_cols is not None else list(SENSITIVE_COLS)
         self.feature_columns_ = None
-        # TODO implement these options
-        self.label_encode = label_encode
-        self.scale_numeric = scale_numeric
-        self.one_hot_encode = one_hot_encode
+        # One-hot encoding is always applied via pd.get_dummies.
+        # Numeric scaling is applied only for LogisticRegression to keep behavior consistent across models.
+        self.scale_numeric = isinstance(self.base_model, LogisticRegression)
 
     def _ensure_df(self, X):
         return X.copy() if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
@@ -164,6 +166,19 @@ class MetaModel:
         return X
 
     def _encode_train(self, X_train):
+        X_train = X_train.copy()
+        if self.scale_numeric:
+            numeric_cols = X_train.select_dtypes(include=["number"]).columns.tolist()
+            self.numeric_cols_ = numeric_cols
+            if numeric_cols:
+                self.scaler = StandardScaler().fit(X_train[numeric_cols])
+                self.numeric_means_ = pd.Series(self.scaler.mean_, index=numeric_cols)
+                X_train[numeric_cols] = self.scaler.transform(X_train[numeric_cols])
+            else:
+                self.scaler = None
+                self.numeric_means_ = None
+
+        # Always one-hot encode categoricals.
         X_train_enc = pd.get_dummies(X_train, drop_first=False)
         self.feature_columns_ = X_train_enc.columns.tolist()
         return X_train_enc
@@ -171,6 +186,16 @@ class MetaModel:
     def _encode_inference(self, X):
         if self.feature_columns_ is None:
             raise RuntimeError("MetaModel must be fitted before inference")
+
+        X = X.copy()
+
+        if self.scale_numeric:
+            if self.scaler is not None:
+                numeric_cols = list(self.numeric_cols_)
+                X_num = X.reindex(columns=numeric_cols)
+                if self.numeric_means_ is not None:
+                    X_num = X_num.fillna(self.numeric_means_)
+                X[numeric_cols] = self.scaler.transform(X_num)
 
         X_enc = pd.get_dummies(X, drop_first=False)
         return X_enc.reindex(columns=self.feature_columns_, fill_value=0)
@@ -204,6 +229,7 @@ class MetaModel:
 
 
 
+# %%
 if __name__ == "__main__":
     adult_df = pd.read_csv("data/adult.csv")
 
@@ -226,12 +252,9 @@ if __name__ == "__main__":
         y_test = y.iloc[test_idx].reset_index(drop=True)
 
         model = MetaModel(
-            base_model=LogisticRegression(max_iter=1000),
+            base_model=LogisticRegression(max_iter=10),
             fairness_mode=FairnessMode.REWEIGH,
             sensitive_cols=SENSITIVE_COLS,
-            label_encode=False,
-            scale_numeric=False,
-            one_hot_encode=True,
         )
 
         model.fit(X_train, y_train)
