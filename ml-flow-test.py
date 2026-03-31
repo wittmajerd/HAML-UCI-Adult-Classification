@@ -14,7 +14,8 @@ from process import (
 )
 
 def ml_flow_train(X_train, y_train):
-    mlflow.set_experiment("MLflow Quickstart")
+    mlflow.set_tracking_uri("http://localhost:5000")
+    mlflow.set_experiment("Default")
     # Enable autologging for scikit-learn
     mlflow.sklearn.autolog()
 
