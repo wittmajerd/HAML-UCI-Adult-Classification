@@ -11,3 +11,5 @@ EXPOSE 5000
 COPY . .
 
 #CMD ["python", "app.py"]
+# Keep the container running for testing purposes to attach from VS Code.
+CMD sleep infinity
