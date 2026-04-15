@@ -4,7 +4,7 @@ From: python:3.12.13-slim
 %post
     pip install --no-cache-dir mlflow==3.10.1
 
-%startscript
+%runscript
     mlflow server \
         --host 0.0.0.0 \
         --port 5000 \
