@@ -1,4 +1,4 @@
-#!/bash/bin
+#!/bin/bash
 
 echo "Copy def file to tmp"
 cp ~/nr_haml2025/HAML-UCI-Adult-Classification/mlflow-tracking/mlflow.def /tmp/mlflow.def
