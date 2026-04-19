@@ -30,12 +30,20 @@ ssh -N -L 5000:localhost:5000 nr_hafb@vn01
 ```
 
 ### Docker commands
-Currently the one container is used for a unified testing environment.
-* Build: 
+Currently with the mlflow on HPC setup the procedure is the following:
+* Build (assuming you are in the root of the project): 
 ```
 docker build -t haml-devenv .
 ```
 * Run:
 ```
-docker run -it --rm --network=host -p 5000:5000 -t haml-devenv /bin/bash
+docker run -it --rm -p 5000:5000 -t haml-devenv /bin/bash
+```
+### Tracking during training
+You can check ml-flow-test python script under mlflow-tracking to see an example how the tracking is done
+The setting of tracking URI is importatnt, you must select one based on you run the training on local machine or indise the docker:
+```
+    mlflow.set_tracking_uri("http://host.docker.internal:5000") # <-- This line is if we are using the dev container
+    mlflow.set_tracking_uri("http://localhost:5000") # <-- This line is if we are running the script locally
+    mlflow.set_experiment("Default")
 ```
