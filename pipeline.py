@@ -8,11 +8,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import StratifiedKFold, cross_validate
-
-
-TARGET_COL = "income"
-SENSITIVE_COLS = ["sex", "race"]
+from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_validate
 
 
 class MissingStrategy(str, Enum):
@@ -37,6 +33,7 @@ def prepare_raw_df(
     df,
     missing_strategy: MissingStrategy = MissingStrategy.UNKNOWN,
     education_mode: EducationMode = EducationMode.NUM,
+    target_col: str = "income",
 ):
     """Handle '?' values, choose education representation, and make target boolean."""
     if not isinstance(missing_strategy, MissingStrategy):
@@ -52,8 +49,8 @@ def prepare_raw_df(
 
     df = df.replace("?", pd.NA)
 
-    if TARGET_COL in df.columns:
-        df[TARGET_COL] = df[TARGET_COL].astype(str).str.replace(".", "", regex=False)
+    if target_col in df.columns:
+        df[target_col] = df[target_col].astype(str).str.replace(".", "", regex=False)
 
     if missing_strategy == MissingStrategy.DROP:
         df = df.dropna().reset_index(drop=True)
@@ -73,8 +70,8 @@ def prepare_raw_df(
     if education_mode == EducationMode.CAT and edu_num_col in df.columns:
         df = df.drop(columns=[edu_num_col])
 
-    if TARGET_COL in df.columns:
-        df[TARGET_COL] = df[TARGET_COL] == ">50K"
+    if target_col in df.columns:
+        df[target_col] = df[target_col] == ">50K"
 
     return df
 
@@ -114,7 +111,7 @@ class MetaModel(ClassifierMixin, BaseEstimator):
 
         self.base_model = base_model
         self.fairness_mode = fairness_mode
-        self.sensitive_cols = sensitive_cols if sensitive_cols is not None else list(SENSITIVE_COLS)
+        self.sensitive_cols = sensitive_cols if sensitive_cols is not None else ["sex", "race"]
         self.feature_columns_ = None
         # One-hot encoding is always applied via pd.get_dummies.
         # Numeric scaling is applied only for LogisticRegression to keep behavior consistent across models.
@@ -220,37 +217,59 @@ class MetaModel(ClassifierMixin, BaseEstimator):
         return self.base_model.predict_proba(X_prepared)
 
 
-if __name__ == "__main__":
-    adult_df = pd.read_csv("data/adult.csv")
-
+def training_pipeline(adult_df: pd.DataFrame, config: dict):
+    # TODO configurable preprocessing steps, model choice, and fairness mode
     clean_df = prepare_raw_df(
         adult_df,
-        missing_strategy=MissingStrategy.UNKNOWN,
-        education_mode=EducationMode.NUM,
+        missing_strategy=config["missing_strategy"],
+        education_mode=config["education_mode"],
+        target_col=config["target_col"],
     )
 
-    X = clean_df.drop(columns=[TARGET_COL])
-    y = clean_df[TARGET_COL].astype(int)
+    X = clean_df.drop(columns=[config["target_col"]])
+    y = clean_df[config["target_col"]].astype(int)
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    est = MetaModel(
+    model = MetaModel(
         # base_model=LogisticRegression(max_iter=1000, random_state=42),
         # base_model=RandomForestClassifier(n_estimators=100, random_state=42),
-        base_model=GradientBoostingClassifier(n_estimators=100, random_state=42),
-        fairness_mode=FairnessMode.NONE,   # NONE/DROP/MASK/REWEIGH
-        sensitive_cols=SENSITIVE_COLS,
+        base_model=config["model_type"](n_estimators=100, random_state=42),
+        fairness_mode=config["fairness_mode"],
+        sensitive_cols=config["sensitive_cols"],
     )
 
-    scoring = {
-        "acc": "accuracy",
-        "f1": "f1",
-        "auc": "roc_auc",
+    result = cross_val_predict(model, X, y, cv=cv, method="predict_proba", n_jobs=-1)
+
+    return result, y
+
+# TODO more metrics - for example, group-wise metrics for fairness evaluation
+def evaluation_pipeline(y_true, y_pred_proba):
+    from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+    y_pred = (y_pred_proba[:, 1] >= 0.5).astype(int)
+
+    acc = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    auc = roc_auc_score(y_true, y_pred_proba[:, 1])
+
+    print(f"Accuracy: {acc:.4f}")
+    print(f"F1-Score: {f1:.4f}")
+    print(f"AUC: {auc:.4f}")
+
+
+if __name__ == "__main__":
+    adult_df = pd.read_csv("data/adult.csv")
+
+    config = {
+        "missing_strategy": MissingStrategy.UNKNOWN,
+        "education_mode": EducationMode.NUM,
+        "fairness_mode": FairnessMode.NONE,
+        "target_col": "income",
+        "sensitive_cols": ["sex", "race"],
+        "model_type": GradientBoostingClassifier,  # sklearn classifier class, e.g. LogisticRegression, RandomForestClassifier, GradientBoostingClassifier
     }
 
-    res = cross_validate(est, X, y, cv=cv, scoring=scoring, n_jobs=-1)
+    result, y_true = training_pipeline(adult_df, config=config)
 
-    print(f"Accuracy: {res['test_acc'].mean():.4f} (+/- {res['test_acc'].std() * 2:.4f})")
-    print(f"F1-Score: {res['test_f1'].mean():.4f} (+/- {res['test_f1'].std() * 2:.4f})")
-    print(f"AUC: {res['test_auc'].mean():.4f} (+/- {res['test_auc'].std() * 2:.4f})")
-
+    evaluation_pipeline(y_true, result)
