@@ -218,7 +218,6 @@ class MetaModel(ClassifierMixin, BaseEstimator):
 
 
 def training_pipeline(adult_df: pd.DataFrame, config: dict):
-    # TODO configurable preprocessing steps, model choice, and fairness mode
     clean_df = prepare_raw_df(
         adult_df,
         missing_strategy=config["missing_strategy"],
