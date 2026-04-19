@@ -1,7 +1,11 @@
+from enum import Enum
 import mlflow
 import pandas as pd
+
+from sklearn.base import BaseEstimator
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+
 from pipeline import (
     MissingStrategy,
     EducationMode,
@@ -19,8 +23,19 @@ def ml_flow_train(adult_df: pd.DataFrame, config: dict):
 
     with mlflow.start_run():
         result, y_true = training_pipeline(adult_df, config=config)
-        # itt is lehetne logolni a resultot is mlflow-ba, de most csak az evaluation_pipeline-t hívjuk meg
-        evaluation_pipeline(y_true, result)
+
+        results = evaluation_pipeline(y_true, result)
+
+        # log parameters
+        for key, value in config.items():
+            if isinstance(value, type) and issubclass(value, BaseEstimator):
+                mlflow.log_param(key, value.__name__)
+            else:
+                mlflow.log_param(key, value if not isinstance(value, Enum) else value.value)
+
+        # Log evaluation metrics
+        for metric, value in results.items():
+            mlflow.log_metric(metric, value)
 
 if __name__ == "__main__":
     adult_df = pd.read_csv("data/adult.csv")
