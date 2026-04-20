@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  mlflow:
+    build: ./mlflow-tracking
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/app/mlruns
+
+  training:
+    build: .
+    depends_on:
+      - mlflow

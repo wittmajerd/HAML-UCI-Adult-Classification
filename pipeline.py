@@ -1,5 +1,6 @@
 from collections import defaultdict
 from enum import Enum
+import logging
 
 import numpy as np
 import pandas as pd
@@ -8,35 +9,36 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_validate
 
 
-TARGET_COL = "income"
-SENSITIVE_COLS = ["sex", "race"]
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+logger = logging.getLogger(__name__)
 
 
 class MissingStrategy(str, Enum):
-    DROP = "drop"
-    UNKNOWN = "unknown"
+    DROP = "DROP"
+    UNKNOWN = "UNKNOWN"
 
 
 class EducationMode(str, Enum):
-    NUM = "num"
-    CAT = "cat"
-    BOTH = "both"
+    NUM = "NUM"
+    CAT = "CAT"
+    BOTH = "BOTH"
 
 
 class FairnessMode(str, Enum):
-    NONE = "none"
-    DROP = "drop"
-    REWEIGH = "reweigh"
-    MASK = "mask"
+    NONE = "NONE"
+    DROP = "DROP"
+    REWEIGH = "REWEIGH"
+    MASK = "MASK"
 
 
 def prepare_raw_df(
     df,
     missing_strategy: MissingStrategy = MissingStrategy.UNKNOWN,
     education_mode: EducationMode = EducationMode.NUM,
+    target_col: str = "income",
 ):
     """Handle '?' values, choose education representation, and make target boolean."""
     if not isinstance(missing_strategy, MissingStrategy):
@@ -52,8 +54,8 @@ def prepare_raw_df(
 
     df = df.replace("?", pd.NA)
 
-    if TARGET_COL in df.columns:
-        df[TARGET_COL] = df[TARGET_COL].astype(str).str.replace(".", "", regex=False)
+    if target_col in df.columns:
+        df[target_col] = df[target_col].astype(str).str.replace(".", "", regex=False)
 
     if missing_strategy == MissingStrategy.DROP:
         df = df.dropna().reset_index(drop=True)
@@ -73,8 +75,8 @@ def prepare_raw_df(
     if education_mode == EducationMode.CAT and edu_num_col in df.columns:
         df = df.drop(columns=[edu_num_col])
 
-    if TARGET_COL in df.columns:
-        df[TARGET_COL] = df[TARGET_COL] == ">50K"
+    if target_col in df.columns:
+        df[target_col] = df[target_col] == ">50K"
 
     return df
 
@@ -114,7 +116,7 @@ class MetaModel(ClassifierMixin, BaseEstimator):
 
         self.base_model = base_model
         self.fairness_mode = fairness_mode
-        self.sensitive_cols = sensitive_cols if sensitive_cols is not None else list(SENSITIVE_COLS)
+        self.sensitive_cols = sensitive_cols if sensitive_cols is not None else ["sex", "race"]
         self.feature_columns_ = None
         # One-hot encoding is always applied via pd.get_dummies.
         # Numeric scaling is applied only for LogisticRegression to keep behavior consistent across models.
@@ -202,6 +204,7 @@ class MetaModel(ClassifierMixin, BaseEstimator):
         X_train, y_train, sample_weight = self._apply_train_fairness(X_train, y_train, sample_weight)
         X_train = self._encode_train(X_train)
 
+        logger.info("Fitting model on %s samples with %s features", len(X_train), X_train.shape[1])
         if sample_weight is not None:
             self.base_model.fit(X_train, y_train, sample_weight=sample_weight)
         else:
@@ -220,37 +223,103 @@ class MetaModel(ClassifierMixin, BaseEstimator):
         return self.base_model.predict_proba(X_prepared)
 
 
-if __name__ == "__main__":
-    adult_df = pd.read_csv("data/adult.csv")
+def print_config(config):
+    for key, value in config.items():
+        if isinstance(value, type) and issubclass(value, BaseEstimator):
+            logger.info("  %s: %s", key, value.__name__)
+        else:
+            logger.info("  %s: %s", key, value if not isinstance(value, Enum) else value.value)
+
+
+def training_pipeline(adult_df: pd.DataFrame, config: dict):
+    logger.info("Starting cv training pipeline with config:")
+    print_config(config)
 
     clean_df = prepare_raw_df(
         adult_df,
-        missing_strategy=MissingStrategy.UNKNOWN,
-        education_mode=EducationMode.NUM,
+        missing_strategy=config["missing_strategy"],
+        education_mode=config["education_mode"],
+        target_col=config["target_col"],
     )
+    logger.info("Data prepared: %s rows, %s columns", clean_df.shape[0], clean_df.shape[1])
 
-    X = clean_df.drop(columns=[TARGET_COL])
-    y = clean_df[TARGET_COL].astype(int)
+    X = clean_df.drop(columns=[config["target_col"]])
+    y = clean_df[config["target_col"]].astype(int)
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-    est = MetaModel(
-        # base_model=LogisticRegression(max_iter=1000, random_state=42),
-        # base_model=RandomForestClassifier(n_estimators=100, random_state=42),
-        base_model=GradientBoostingClassifier(n_estimators=100, random_state=42),
-        fairness_mode=FairnessMode.NONE,   # NONE/DROP/MASK/REWEIGH
-        sensitive_cols=SENSITIVE_COLS,
+    model = MetaModel(
+        base_model=config["model_type"](n_estimators=100, random_state=42),
+        fairness_mode=config["fairness_mode"],
+        sensitive_cols=config["sensitive_cols"],
     )
 
-    scoring = {
-        "acc": "accuracy",
-        "f1": "f1",
-        "auc": "roc_auc",
+    result = cross_val_predict(model, X, y, cv=cv, method="predict_proba", n_jobs=-1)
+    logger.info("Training pipeline completed")
+
+    return result, y
+
+def train_model(adult_df: pd.DataFrame, config: dict):
+    logger.info("Training model with config:")
+    print_config(config)
+
+    clean_df = prepare_raw_df(
+        adult_df,
+        missing_strategy=config["missing_strategy"],
+        education_mode=config["education_mode"],
+        target_col=config["target_col"],
+    )
+
+    X = clean_df.drop(columns=[config["target_col"]])
+    y = clean_df[config["target_col"]].astype(int)
+
+    model = MetaModel(
+        base_model=config["model_type"](n_estimators=100, random_state=42),
+        fairness_mode=config["fairness_mode"],
+        sensitive_cols=config["sensitive_cols"],
+    )
+
+    model.fit(X, y)
+
+    return model
+
+
+# TODO more metrics - for example, group-wise metrics for fairness evaluation
+def evaluation_pipeline(y_true, y_pred_proba):
+    from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+    y_pred = (y_pred_proba[:, 1] >= 0.5).astype(int)
+
+    acc = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    auc = roc_auc_score(y_true, y_pred_proba[:, 1])
+
+    results = {
+        "accuracy": round(acc, 4),
+        "f1_score": round(f1, 4),
+        "auc": round(auc, 4),
     }
 
-    res = cross_validate(est, X, y, cv=cv, scoring=scoring, n_jobs=-1)
+    logger.info("Evaluation results:")
+    logger.info("   Accuracy: %.4f", acc)
+    logger.info("   F1-Score: %.4f", f1)
+    logger.info("   AUC: %.4f", auc)
 
-    print(f"Accuracy: {res['test_acc'].mean():.4f} (+/- {res['test_acc'].std() * 2:.4f})")
-    print(f"F1-Score: {res['test_f1'].mean():.4f} (+/- {res['test_f1'].std() * 2:.4f})")
-    print(f"AUC: {res['test_auc'].mean():.4f} (+/- {res['test_auc'].std() * 2:.4f})")
+    return results
 
+
+if __name__ == "__main__":
+    adult_df = pd.read_csv("data/adult.csv")
+
+    config = {
+        "missing_strategy": MissingStrategy.UNKNOWN,
+        "education_mode": EducationMode.NUM,
+        "fairness_mode": FairnessMode.NONE,
+        "target_col": "income",
+        "sensitive_cols": ["sex", "race"],
+        "model_type": GradientBoostingClassifier,  # sklearn classifier class, e.g. LogisticRegression, RandomForestClassifier, GradientBoostingClassifier
+    }
+
+    result, y_true = training_pipeline(adult_df, config=config)
+
+    evaluation_pipeline(y_true, result)
