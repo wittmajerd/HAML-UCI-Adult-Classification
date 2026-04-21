@@ -34,11 +34,9 @@ def ml_flow_train(adult_df: pd.DataFrame, config: dict):
         if config.get("train_final_model", False):
             mlflow.sklearn.log_model(model, pyfunc_predict_fn="predict_proba", name="model")
 
-        # log parameters
         for key, value in config.items():
             mlflow.log_param(key, value if not isinstance(value, Enum) else value.value)
 
-        # Log evaluation metrics
         for metric, value in metrics.items():
             mlflow.log_metric(metric, value)
 
@@ -71,7 +69,6 @@ def _log_curves_and_curve_metrics(y_true, y_score):
     mlflow.log_figure(pr_fig, "pr_curve.png")
     plt.close(pr_fig)
 
-    # probability histogram
     hist_fig, hist_ax = plt.subplots(figsize=(6, 5))
     hist_ax.hist(y_score[y_true == 0], bins=20, alpha=0.5, label="Negative Class")
     hist_ax.hist(y_score[y_true == 1], bins=20, alpha=0.5, label="Positive Class")
@@ -82,7 +79,6 @@ def _log_curves_and_curve_metrics(y_true, y_score):
     mlflow.log_figure(hist_fig, "predicted_probability_histogram.png")
     plt.close(hist_fig)
 
-    
     cm = confusion_matrix(y_true, y_score >= 0.5)
     cm_fig, cm_ax = plt.subplots(figsize=(6, 5))
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
@@ -117,24 +113,25 @@ def grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict):
 
 if __name__ == "__main__":
     adult_df = pd.read_csv("data/adult.csv")
-    config = {
-        "missing_strategy": MissingStrategy.UNKNOWN,
-        "education_mode": EducationMode.NUM,
-        "fairness_mode": FairnessMode.NONE,
-        "model_type": Model.GB,
-        "target_col": "income",
-        "sensitive_cols": ["sex", "race"],
-        "train_final_model": True,  # Whether to fit a final model on the entire dataset after CV (useful for MLflow logging)
-    }
-
-    ml_flow_train(adult_df, config=config)
-
-    # param_grid = {
-    #     "missing_strategy": [MissingStrategy.UNKNOWN, MissingStrategy.DROP],
-    #     "education_mode": [EducationMode.NUM, EducationMode.CAT, EducationMode.BOTH],
-    #     "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
-    #     "model_type": [Model.LogReg, Model.RF, Model.GB],
+    # config = {
+    #     "missing_strategy": MissingStrategy.UNKNOWN,
+    #     "education_mode": EducationMode.NUM,
+    #     "fairness_mode": FairnessMode.NONE,
+    #     "model_type": Model.GB,
+    #     "target_col": "income",
+    #     "sensitive_cols": ["sex", "race"],
+    #     "train_final_model": True,  # Whether to fit a final model on the entire dataset after CV (useful for MLflow logging)
     # }
+
+    # ml_flow_train(adult_df, config=config)
+
+    # Full param grid
+    param_grid = {
+        "missing_strategy": [MissingStrategy.UNKNOWN, MissingStrategy.DROP],
+        "education_mode": [EducationMode.NUM, EducationMode.CAT, EducationMode.BOTH],
+        "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
+        "model_type": [Model.LogReg, Model.RF, Model.GB],
+    }
 
     # param_grid = {
     #     "missing_strategy": [MissingStrategy.UNKNOWN, MissingStrategy.DROP],
@@ -142,4 +139,4 @@ if __name__ == "__main__":
     #     "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH],
     #     "model_type": [ Model.GB],
     # }
-    # grid_search_ml_flow(adult_df, param_grid=param_grid)
+    grid_search_ml_flow(adult_df, param_grid=param_grid)

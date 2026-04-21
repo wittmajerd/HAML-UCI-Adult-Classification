@@ -68,7 +68,7 @@ def prepare_raw_df(
 
     numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
     # Use float for numeric features so MLflow signature remains compatible
-    # with missing values that may appear at inference time.
+    # with missing values that may appear at inference time. - if we use mlflow.sklearn.autolog() we get a warning for this
     # if numeric_cols:
     #     df[numeric_cols] = df[numeric_cols].astype("float64")
 
