@@ -3,3 +3,4 @@ pandas==2.2.1
 scikit-learn==1.8.0
 matplotlib==3.10.8
 mlflow==3.10.1
+fairlearn==0.13.0

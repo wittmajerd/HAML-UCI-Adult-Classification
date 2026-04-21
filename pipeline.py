@@ -9,7 +9,10 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_validate
+from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, precision_score, recall_score
+
+from fairlearn.metrics import demographic_parity_difference, demographic_parity_ratio, equalized_odds_difference, equalized_odds_ratio 
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -32,6 +35,11 @@ class FairnessMode(str, Enum):
     DROP = "DROP"
     REWEIGH = "REWEIGH"
     MASK = "MASK"
+
+class Model(str, Enum):
+    LogReg = "LogReg"
+    RF = "RF"
+    GB = "GB"
 
 
 def prepare_raw_df(
@@ -56,15 +64,21 @@ def prepare_raw_df(
 
     if target_col in df.columns:
         df[target_col] = df[target_col].astype(str).str.replace(".", "", regex=False)
+        df[target_col] = df[target_col] == ">50K"
+
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    # Use float for numeric features so MLflow signature remains compatible
+    # with missing values that may appear at inference time.
+    # if numeric_cols:
+    #     df[numeric_cols] = df[numeric_cols].astype("float64")
 
     if missing_strategy == MissingStrategy.DROP:
         df = df.dropna().reset_index(drop=True)
     else:
-        num_cols = df.select_dtypes(include=["number"]).columns.tolist()
-        cat_cols = [col for col in df.columns if col not in num_cols]
+        cat_cols = [col for col in df.columns if col not in numeric_cols]
         for col in cat_cols:
             df[col] = df[col].fillna("Unknown")
-        for col in num_cols:
+        for col in numeric_cols:
             df[col] = df[col].fillna(df[col].median())
 
     edu_num_col = "education_num" if "education_num" in df.columns else "education.num"
@@ -74,9 +88,6 @@ def prepare_raw_df(
         df = df.drop(columns=[edu_cat_col])
     if education_mode == EducationMode.CAT and edu_num_col in df.columns:
         df = df.drop(columns=[edu_num_col])
-
-    if target_col in df.columns:
-        df[target_col] = df[target_col] == ">50K"
 
     return df
 
@@ -204,7 +215,6 @@ class MetaModel(ClassifierMixin, BaseEstimator):
         X_train, y_train, sample_weight = self._apply_train_fairness(X_train, y_train, sample_weight)
         X_train = self._encode_train(X_train)
 
-        logger.info("Fitting model on %s samples with %s features", len(X_train), X_train.shape[1])
         if sample_weight is not None:
             self.base_model.fit(X_train, y_train, sample_weight=sample_weight)
         else:
@@ -225,10 +235,7 @@ class MetaModel(ClassifierMixin, BaseEstimator):
 
 def print_config(config):
     for key, value in config.items():
-        if isinstance(value, type) and issubclass(value, BaseEstimator):
-            logger.info("  %s: %s", key, value.__name__)
-        else:
-            logger.info("  %s: %s", key, value if not isinstance(value, Enum) else value.value)
+        logger.info("  %s: %s", key, value if not isinstance(value, Enum) else value.value)
 
 
 def training_pipeline(adult_df: pd.DataFrame, config: dict):
@@ -245,67 +252,66 @@ def training_pipeline(adult_df: pd.DataFrame, config: dict):
 
     X = clean_df.drop(columns=[config["target_col"]])
     y = clean_df[config["target_col"]].astype(int)
+    sensitive_features = X[config["sensitive_cols"]].copy()
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
+    model_type = config.get("model_type", Model.GB)
+    if model_type == Model.LogReg:
+        base_model = LogisticRegression(random_state=42)
+    elif model_type == Model.RF:
+        base_model = RandomForestClassifier(random_state=42)
+    elif model_type == Model.GB:
+        base_model = GradientBoostingClassifier(random_state=42)
+
     model = MetaModel(
-        base_model=config["model_type"](n_estimators=100, random_state=42),
+        base_model=base_model,
         fairness_mode=config["fairness_mode"],
         sensitive_cols=config["sensitive_cols"],
     )
 
-    result = cross_val_predict(model, X, y, cv=cv, method="predict_proba", n_jobs=-1)
+    predictions = cross_val_predict(model, X, y, cv=cv, method="predict_proba", n_jobs=-1)
     logger.info("Training pipeline completed")
 
-    return result, y
+    if config.get("train_final_model", False):
+        logger.info("Fitting final model on entire dataset")
+        model.fit(X, y)
 
-def train_model(adult_df: pd.DataFrame, config: dict):
-    logger.info("Training model with config:")
-    print_config(config)
-
-    clean_df = prepare_raw_df(
-        adult_df,
-        missing_strategy=config["missing_strategy"],
-        education_mode=config["education_mode"],
-        target_col=config["target_col"],
-    )
-
-    X = clean_df.drop(columns=[config["target_col"]])
-    y = clean_df[config["target_col"]].astype(int)
-
-    model = MetaModel(
-        base_model=config["model_type"](n_estimators=100, random_state=42),
-        fairness_mode=config["fairness_mode"],
-        sensitive_cols=config["sensitive_cols"],
-    )
-
-    model.fit(X, y)
-
-    return model
+    return predictions, y, sensitive_features, model if config.get("train_final_model", False) else None
 
 
 # TODO more metrics - for example, group-wise metrics for fairness evaluation
-def evaluation_pipeline(y_true, y_pred_proba):
-    from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-
+def evaluation_pipeline(y_true, y_pred_proba, sensitive_features):
     y_pred = (y_pred_proba[:, 1] >= 0.5).astype(int)
 
     acc = accuracy_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
     f1 = f1_score(y_true, y_pred)
     auc = roc_auc_score(y_true, y_pred_proba[:, 1])
 
-    results = {
+    demographic_parity_diff = demographic_parity_difference(y_true, y_pred, sensitive_features=sensitive_features)
+    demographic_parity_r = demographic_parity_ratio(y_true, y_pred, sensitive_features=sensitive_features)
+    equalized_odds_diff = equalized_odds_difference(y_true, y_pred, sensitive_features=sensitive_features)
+    equalized_odds_r = equalized_odds_ratio(y_true, y_pred, sensitive_features=sensitive_features)
+
+    metrics = {
         "accuracy": round(acc, 4),
-        "f1_score": round(f1, 4),
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
         "auc": round(auc, 4),
+        "f1_score": round(f1, 4),
+        "demographic_parity": round(demographic_parity_diff, 4),
+        "demographic_parity_ratio": round(demographic_parity_r, 4),
+        "equalized_odds": round(equalized_odds_diff, 4),
+        "equalized_odds_ratio": round(equalized_odds_r, 4),
     }
 
     logger.info("Evaluation results:")
-    logger.info("   Accuracy: %.4f", acc)
-    logger.info("   F1-Score: %.4f", f1)
-    logger.info("   AUC: %.4f", auc)
+    for metric, value in metrics.items():
+        logger.info("  %s: %s", metric, value)
 
-    return results
+    return metrics
 
 
 if __name__ == "__main__":
@@ -314,12 +320,13 @@ if __name__ == "__main__":
     config = {
         "missing_strategy": MissingStrategy.UNKNOWN,
         "education_mode": EducationMode.NUM,
-        "fairness_mode": FairnessMode.NONE,
+        "fairness_mode": FairnessMode.REWEIGH,
         "target_col": "income",
         "sensitive_cols": ["sex", "race"],
-        "model_type": GradientBoostingClassifier,  # sklearn classifier class, e.g. LogisticRegression, RandomForestClassifier, GradientBoostingClassifier
+        "model_type": Model.GB,
+        "train_final_model": False,  # Whether to fit a final model on the entire dataset after CV (useful for MLflow logging)
     }
 
-    result, y_true = training_pipeline(adult_df, config=config)
+    result, y_true, sensitive_features, model = training_pipeline(adult_df, config=config)
 
-    evaluation_pipeline(y_true, result)
+    evaluation_pipeline(y_true, result, sensitive_features)
