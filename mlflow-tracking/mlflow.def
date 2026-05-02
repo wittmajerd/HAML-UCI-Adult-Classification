@@ -7,7 +7,7 @@ From: python:3.12.13-slim
 %runscript
     mlflow server \
         --host 0.0.0.0 \
-        --port 5000 \
+        --port 5859 \
         --backend-store-uri file:/app/mlruns \
         --default-artifact-root file:/app/mlruns \
         --allowed-hosts "*"
