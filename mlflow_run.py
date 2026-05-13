@@ -160,6 +160,7 @@ if __name__ == "__main__":
 
     param_grid = {
         "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
-        "sensitive_cols": [["sex"], ["race"], ["sex", "race"], ["sex", "race", "marital.status"]],  # ['age', 'workclass',  'education.num', 'marital.status', 'relationship', 'race', 'sex', 'native.country']
+        # Could be sensitive columns ['race', 'sex', 'marital.status', 'relationship', 'native.country',    'age', 'workclass',  'education.num',]
+        "sensitive_cols": [["sex"], ["race"], ["sex", "race"], ["sex", "race", "marital.status"], ["sex", "race", "native.country"], ["sex", "race", "relationship"]],  
     }
     narrowed_grid_search_ml_flow(adult_df, param_grid=param_grid)
