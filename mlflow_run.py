@@ -23,7 +23,7 @@ from pipeline import (
 def ml_flow_train(adult_df: pd.DataFrame, config: dict):
     mlflow.set_tracking_uri("http://host.docker.internal:5000") # <-- This line is if we are using the dev container
     # mlflow.set_tracking_uri("http://localhost:5000") # <-- This line is if we are running the script locally
-    mlflow.set_experiment("Default")
+    mlflow.set_experiment("Fairness_Experiment")
     # Enable autologging for scikit-learn
     # mlflow.sklearn.autolog()
 
@@ -160,6 +160,6 @@ if __name__ == "__main__":
 
     param_grid = {
         "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
-        "sensitive_cols": [[], ["sex"], ["race"], ["sex", "race"], ["sex", "race", "marital.status"]],  # ['age', 'workclass',  'education.num', 'marital.status', 'relationship', 'race', 'sex', 'native.country']
+        "sensitive_cols": [["sex"], ["race"], ["sex", "race"], ["sex", "race", "marital.status"]],  # ['age', 'workclass',  'education.num', 'marital.status', 'relationship', 'race', 'sex', 'native.country']
     }
     narrowed_grid_search_ml_flow(adult_df, param_grid=param_grid)
