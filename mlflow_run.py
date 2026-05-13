@@ -111,6 +111,21 @@ def grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict):
                     ml_flow_train(adult_df, config=config)
 
 
+def narrowed_grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict):
+    for fairness_mode in param_grid["fairness_mode"]:
+        for sensitive_cols in param_grid.get("sensitive_cols", [["sex", "race"]]):
+            config = {
+                "missing_strategy": MissingStrategy.UNKNOWN,
+                "education_mode": EducationMode.NUM,
+                "fairness_mode": fairness_mode,
+                "model_type": Model.GB,
+                "target_col": "income",
+                "sensitive_cols": sensitive_cols,
+                "train_final_model": False,  # Don't train final model for grid search runs
+            }
+            ml_flow_train(adult_df, config=config)
+
+
 if __name__ == "__main__":
     adult_df = pd.read_csv("data/adult.csv")
     # config = {
@@ -121,22 +136,30 @@ if __name__ == "__main__":
     #     "target_col": "income",
     #     "sensitive_cols": ["sex", "race"],
     #     "train_final_model": True,  # Whether to fit a final model on the entire dataset after CV (useful for MLflow logging)
+    #     # Best params for GradientBoostingClassifier found by a RandomizedSearchCV:
+    #     "model_params": {
+    #             "subsample": 1.0, 
+    #             "n_estimators": 500, 
+    #             "min_samples_split": 5, 
+    #             "min_samples_leaf": 2, 
+    #             "max_depth": 5, 
+    #             "learning_rate": 0.05
+    #         }
     # }
 
     # ml_flow_train(adult_df, config=config)
 
     # Full param grid
-    param_grid = {
-        "missing_strategy": [MissingStrategy.UNKNOWN, MissingStrategy.DROP],
-        "education_mode": [EducationMode.NUM, EducationMode.CAT, EducationMode.BOTH],
-        "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
-        "model_type": [Model.LogReg, Model.RF, Model.GB],
-    }
-
     # param_grid = {
     #     "missing_strategy": [MissingStrategy.UNKNOWN, MissingStrategy.DROP],
     #     "education_mode": [EducationMode.NUM, EducationMode.CAT, EducationMode.BOTH],
-    #     "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH],
-    #     "model_type": [ Model.GB],
+    #     "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
+    #     "model_type": [Model.LogReg, Model.RF, Model.GB],
     # }
-    grid_search_ml_flow(adult_df, param_grid=param_grid)
+    # grid_search_ml_flow(adult_df, param_grid=param_grid)
+
+    param_grid = {
+        "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
+        "sensitive_cols": [[], ["sex"], ["race"], ["sex", "race"], ["sex", "race", "marital.status"]],  # ['age', 'workclass',  'education.num', 'marital.status', 'relationship', 'race', 'sex', 'native.country']
+    }
+    narrowed_grid_search_ml_flow(adult_df, param_grid=param_grid)
