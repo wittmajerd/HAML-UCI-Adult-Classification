@@ -92,7 +92,7 @@ def prepare_raw_df(
     return df
 
 
-# ez most csake egy ilyen random implementáció, de kicserélhető akár aif360 reweightre
+# Kamiran és Calders, 2012
 def _manual_reweighing(y, sensitive_df):
     """Reweighing: weight(group, label) = P(group) * P(label) / P(group, label)."""
     group_keys = sensitive_df.astype(str).agg("|".join, axis=1)
