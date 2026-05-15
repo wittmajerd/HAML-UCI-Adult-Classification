@@ -23,7 +23,7 @@ from pipeline import (
 def ml_flow_train(adult_df: pd.DataFrame, config: dict):
     mlflow.set_tracking_uri("http://host.docker.internal:5000") # <-- This line is if we are using the dev container
     # mlflow.set_tracking_uri("http://localhost:5000") # <-- This line is if we are running the script locally
-    mlflow.set_experiment("Fairness_Experiment")
+    mlflow.set_experiment("Final models")
     # Enable autologging for scikit-learn
     # mlflow.sklearn.autolog()
 
@@ -111,7 +111,7 @@ def grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict):
                     ml_flow_train(adult_df, config=config)
 
 
-def narrowed_grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict):
+def narrowed_grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict, train_final_model: bool = False):
     for fairness_mode in param_grid["fairness_mode"]:
         for sensitive_cols in param_grid.get("sensitive_cols", [["sex", "race"]]):
             config = {
@@ -121,7 +121,7 @@ def narrowed_grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict):
                 "model_type": Model.GB,
                 "target_col": "income",
                 "sensitive_cols": sensitive_cols,
-                "train_final_model": False,  # Don't train final model for grid search runs
+                "train_final_model": train_final_model,
             }
             ml_flow_train(adult_df, config=config)
 
@@ -158,9 +158,11 @@ if __name__ == "__main__":
     # }
     # grid_search_ml_flow(adult_df, param_grid=param_grid)
 
+    # Training one model with each fairness mode
     param_grid = {
         "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
         # Could be sensitive columns ['race', 'sex', 'marital.status', 'relationship', 'native.country',    'age', 'workclass',  'education.num',]
-        "sensitive_cols": [["sex"], ["race"], ["sex", "race"], ["sex", "race", "marital.status"], ["sex", "race", "native.country"], ["sex", "race", "relationship"]],  
+        # "sensitive_cols": [["sex"], ["race"], ["sex", "race"], ["sex", "race", "marital.status"], ["sex", "race", "native.country"], ["sex", "race", "relationship"]],
+        "sensitive_cols": [["sex", "race"]],
     }
-    narrowed_grid_search_ml_flow(adult_df, param_grid=param_grid)
+    narrowed_grid_search_ml_flow(adult_df, param_grid=param_grid, train_final_model=True)
