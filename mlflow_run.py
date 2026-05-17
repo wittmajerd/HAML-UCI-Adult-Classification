@@ -23,7 +23,7 @@ from pipeline import (
 def ml_flow_train(adult_df: pd.DataFrame, config: dict):
     mlflow.set_tracking_uri("http://host.docker.internal:5000") # <-- This line is if we are using the dev container
     # mlflow.set_tracking_uri("http://localhost:5000") # <-- This line is if we are running the script locally
-    mlflow.set_experiment("Default")
+    mlflow.set_experiment("Final models")
     # Enable autologging for scikit-learn
     # mlflow.sklearn.autolog()
 
@@ -111,6 +111,21 @@ def grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict):
                     ml_flow_train(adult_df, config=config)
 
 
+def narrowed_grid_search_ml_flow(adult_df: pd.DataFrame, param_grid: dict, train_final_model: bool = False):
+    for fairness_mode in param_grid["fairness_mode"]:
+        for sensitive_cols in param_grid.get("sensitive_cols", [["sex", "race"]]):
+            config = {
+                "missing_strategy": MissingStrategy.UNKNOWN,
+                "education_mode": EducationMode.NUM,
+                "fairness_mode": fairness_mode,
+                "model_type": Model.GB,
+                "target_col": "income",
+                "sensitive_cols": sensitive_cols,
+                "train_final_model": train_final_model,
+            }
+            ml_flow_train(adult_df, config=config)
+
+
 if __name__ == "__main__":
     adult_df = pd.read_csv("data/adult.csv")
     # config = {
@@ -121,22 +136,33 @@ if __name__ == "__main__":
     #     "target_col": "income",
     #     "sensitive_cols": ["sex", "race"],
     #     "train_final_model": True,  # Whether to fit a final model on the entire dataset after CV (useful for MLflow logging)
+    #     # Best params for GradientBoostingClassifier found by a RandomizedSearchCV:
+    #     "model_params": {
+    #             "subsample": 1.0, 
+    #             "n_estimators": 500, 
+    #             "min_samples_split": 5, 
+    #             "min_samples_leaf": 2, 
+    #             "max_depth": 5, 
+    #             "learning_rate": 0.05
+    #         }
     # }
 
     # ml_flow_train(adult_df, config=config)
 
     # Full param grid
-    param_grid = {
-        "missing_strategy": [MissingStrategy.UNKNOWN, MissingStrategy.DROP],
-        "education_mode": [EducationMode.NUM, EducationMode.CAT, EducationMode.BOTH],
-        "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
-        "model_type": [Model.LogReg, Model.RF, Model.GB],
-    }
-
     # param_grid = {
     #     "missing_strategy": [MissingStrategy.UNKNOWN, MissingStrategy.DROP],
     #     "education_mode": [EducationMode.NUM, EducationMode.CAT, EducationMode.BOTH],
-    #     "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH],
-    #     "model_type": [ Model.GB],
+    #     "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
+    #     "model_type": [Model.LogReg, Model.RF, Model.GB],
     # }
-    grid_search_ml_flow(adult_df, param_grid=param_grid)
+    # grid_search_ml_flow(adult_df, param_grid=param_grid)
+
+    # Training one model with each fairness mode
+    param_grid = {
+        "fairness_mode": [FairnessMode.NONE, FairnessMode.REWEIGH, FairnessMode.DROP, FairnessMode.MASK],
+        # Could be sensitive columns ['race', 'sex', 'marital.status', 'relationship', 'native.country',    'age', 'workclass',  'education.num',]
+        # "sensitive_cols": [["sex"], ["race"], ["sex", "race"], ["sex", "race", "marital.status"], ["sex", "race", "native.country"], ["sex", "race", "relationship"]],
+        "sensitive_cols": [["sex", "race"]],
+    }
+    narrowed_grid_search_ml_flow(adult_df, param_grid=param_grid, train_final_model=True)
