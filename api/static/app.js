@@ -390,22 +390,63 @@ function formatPrediction(value) {
 }
 
 // =========================
-// PREDICT API
+// PREDICT API & VALIDATION
 // =========================
-async function predict() {
+function validate() {
+    if (data.length === 0) {
+        alert("Nincs küldhető adat a táblázatban!");
+        return false;
+    }
 
+    let hasError = false;
+    data.forEach(row => {
+        COLUMNS.forEach(column => {
+            if (column.type == "number") {
+                const val = row[column.name];
+                const parsed = Number(val);
+
+                if (val === "" || isNaN(parsed) || parsed < 0)
+                    hasError = true;
+            }
+        })
+    });
+
+    if(hasError) {
+        alert("Kérjük, javítsd a hibás mezőket! Minden számnak érvényes, pozitív értéknek kell lennie.");
+        return false;
+    }
+
+    return true;
+}
+
+
+function transform() {
+    return data.map(row => {
+        const calculatedNum = EDUCATION_MAP[row["education"]] ?? row["education.num"];
+        
+        // Létrehozunk egy tiszta másolatot, ahol a szám típusok garantáltan számok
+        const cleanRow = { ...row };
+        COLUMNS.forEach(column => {
+            if (column.type === "number") {
+                cleanRow[column.name] = Number(cleanRow[column.name]) || 0;
+            }
+        });
+        
+        cleanRow["education.num"] = calculatedNum !== undefined && calculatedNum !== "" ? Number(calculatedNum) : 0;
+        return cleanRow;
+    });
+}
+
+
+async function predict() {
     try {
+        const valid = validate();
+        if(!valid) return;
 
         const selectedModel = document.getElementById("modelSelect").value;
 
-        const dataForBackend = data.map(row => {
-            const calculatedNum = EDUCATION_MAP[row["education"]] ?? row["education.num"];
-            
-            return {
-                ...row,
-                "education.num": calculatedNum ?? ""
-            };
-        });
+        // Adat előkészítése: biztosítjuk a tiszta JavaScript szám típusokat a JSON-ben
+        const dataForBackend = transform();
 
         const res = await fetch("/predict", {
             method: "POST",
@@ -435,6 +476,7 @@ async function predict() {
         alert("Hiba a predikció során");
     }
 }
+
 
 // =========================
 // CSV EXPORT
