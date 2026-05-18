@@ -2,6 +2,7 @@ import numpy as np
 from flask import Flask, request, jsonify, render_template
 import mlflow
 import mlflow.pyfunc
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -10,67 +11,11 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 
 # =========================
-# FEATURES
-# =========================
-FEATURE_COLUMNS = [
-    "age",
-    "workclass",
-    "fnlwgt",
-    "education",
-    "marital.status",
-    "occupation",
-    "relationship",
-    "race",
-    "sex",
-    "capital.gain",
-    "capital.loss",
-    "hours.per.week",
-    "native.country"
-]
-
-
-# =========================
 # INDEX
 # =========================
 @app.route("/")
 def index():
     return render_template("index.html")
-
-
-# =========================
-# DATA TRANSFORM
-# =========================
-def safe_float(value):
-    try:
-        return float(value)
-    except:
-        return None
-
-
-def transform(data):
-    X = []
-
-    for row in data:
-
-        X.append([
-            safe_float(row.get("age")),
-            row.get("workclass", ""),
-            safe_float(row.get("fnlwgt")),
-            row.get("education", ""),
-            row.get("marital.status", ""),
-            row.get("occupation", ""),
-            row.get("relationship", ""),
-            row.get("race", ""),
-            row.get("sex", ""),
-            safe_float(row.get("capital.gain")),
-            safe_float(row.get("capital.loss")),
-            safe_float(row.get("hours.per.week")),
-            row.get("native.country", "")
-        ])
-
-    print(np.array(X))
-
-    return np.array(X)
 
 
 # =========================
@@ -95,7 +40,9 @@ def predict():
         if not model:
             return jsonify({"error": "Model not found"}), 404
 
-        X = transform(data)
+        X = pd.DataFrame(X)
+        X = X.replace("", "?")
+
         prob_preds = model.predict(X) #np.ones(len(X))
         threshold = 0.5
         preds = (prob_preds >= threshold).astype(int)
