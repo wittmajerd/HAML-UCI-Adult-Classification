@@ -1,22 +1,179 @@
 // =========================
 // FIX OSZLOPOK
 // =========================
-const HEADERS = [
-    "age",
-    "workclass",
-    "fnlwgt",
-    "education",
-    "marital_status",
-    "occupation",
-    "relationship",
-    "race",
-    "sex",
-    "capital_gain",
-    "capital_loss",
-    "hours_per_week",
-    "native_country",
-    "prediction"
-];
+const COLUMNS = [
+    {
+        "name": "age",
+        "type": "number"
+    },
+    {
+        "name": "workclass",
+        "type": "choice",
+        "options": [
+            "Federal-gov",
+            "Local-gov",
+            "Never-worked",
+            "Private",
+            "Self-emp-inc",
+            "Self-emp-not-inc",
+            "State-gov",
+            "Without-pay"
+        ]
+    },
+    {
+        "name": "fnlwgt",
+        "type": "number"
+    },
+    {
+        "name": "education",
+        "type": "choice",
+        "options": [
+            "10th",
+            "11th",
+            "12th",
+            "1st-4th",
+            "5th-6th",
+            "7th-8th",
+            "9th",
+            "Assoc-acdm",
+            "Assoc-voc",
+            "Bachelors",
+            "Doctorate",
+            "HS-grad",
+            "Masters",
+            "Preschool",
+            "Prof-school",
+            "Some-college"
+        ]
+    },
+    {
+        "name": "marital.status",
+        "type": "choice",
+        "options": [
+            "Divorced",
+            "Married-AF-spouse",
+            "Married-civ-spouse",
+            "Married-spouse-absent",
+            "Never-married",
+            "Separated",
+            "Widowed"
+        ]
+    },
+    {
+        "name": "occupation",
+        "type": "choice",
+        "options": [
+            "Adm-clerical",
+            "Armed-Forces",
+            "Craft-repair",
+            "Exec-managerial",
+            "Farming-fishing",
+            "Handlers-cleaners",
+            "Machine-op-inspct",
+            "Other-service",
+            "Priv-house-serv",
+            "Prof-specialty",
+            "Protective-serv",
+            "Sales",
+            "Tech-support",
+            "Transport-moving"
+        ]
+    },
+    {
+        "name": "relationship",
+        "type": "choice",
+        "options": [
+            "Husband",
+            "Not-in-family",
+            "Other-relative",
+            "Own-child",
+            "Unmarried",
+            "Wife"
+        ]
+    },
+    {
+        "name": "race",
+        "type": "choice",
+        "options": [
+            "Amer-Indian-Eskimo",
+            "Asian-Pac-Islander",
+            "Black",
+            "Other",
+            "White"
+        ]
+    },
+    {
+        "name": "sex",
+        "type": "choice",
+        "options": [
+            "Female",
+            "Male"
+        ]
+    },
+    {
+        "name": "capital.gain",
+        "type": "number"
+    },
+    {
+        "name": "capital.loss",
+        "type": "number"
+    },
+    {
+        "name": "hours.per.week",
+        "type": "number"
+    },
+    {
+        "name": "native.country",
+        "type": "choice",
+        "options": [
+            "Cambodia",
+            "Canada",
+            "China",
+            "Columbia",
+            "Cuba",
+            "Dominican-Republic",
+            "Ecuador",
+            "El-Salvador",
+            "England",
+            "France",
+            "Germany",
+            "Greece",
+            "Guatemala",
+            "Haiti",
+            "Holand-Netherlands",
+            "Honduras",
+            "Hong",
+            "Hungary",
+            "India",
+            "Iran",
+            "Ireland",
+            "Italy",
+            "Jamaica",
+            "Japan",
+            "Laos",
+            "Mexico",
+            "Nicaragua",
+            "Outlying-US(Guam-USVI-etc)",
+            "Peru",
+            "Philippines",
+            "Poland",
+            "Portugal",
+            "Puerto-Rico",
+            "Scotland",
+            "South",
+            "Taiwan",
+            "Thailand",
+            "Trinadad&Tobago",
+            "United-States",
+            "Vietnam",
+            "Yugoslavia"
+        ]
+    },
+    {
+        "name": "prediction",
+        "type": "result"
+    }
+]
 
 // =========================
 // STATE
@@ -45,7 +202,10 @@ function handleFile(event) {
         header: true,
         skipEmptyLines: true,
         transformHeader: h => h.trim(),
-        complete: res => initFromCSV(res.data)
+        complete: res => {
+            initFromCSV(res.data)
+            event.target.value = "";
+        }
     });
 }
 
@@ -66,8 +226,12 @@ function createEmptyRow(row = {}) {
 
     const obj = {};
 
-    HEADERS.forEach(key => {
-        obj[key] = row[key] ?? "";
+    COLUMNS.forEach(column => {
+        if (!row[column.name] || row[column.name] == "?") {
+            obj[column.name] = ""
+        } else {
+            obj[column.name] = row[column.name]
+        }
     });
 
     return obj;
@@ -121,8 +285,8 @@ function renderHeader(table) {
 
     let tr = "<tr>";
 
-    HEADERS.forEach(h => {
-        tr += `<th>${h}</th>`;
+    COLUMNS.forEach(column => {
+        tr += `<th>${column.name}</th>`;
     });
 
     tr += "<th>actions</th></tr>";
@@ -136,26 +300,45 @@ function renderRows(table) {
 
         let tr = "<tr>";
 
-        HEADERS.forEach(key => {
+        COLUMNS.forEach(column => {
 
-            if (key === "prediction") {
-
+            if (column.type == "result") {
                 tr += `<td class="prediction-cell">
-                    ${formatPrediction(row[key])}
+                    ${formatPrediction(row[column.name])}
                 </td>`;
-
-            } else {
-
+            } else if (column.type == "number") {
                 tr += `
                     <td>
                         <input
-                            value="${row[key] ?? ""}"
+                            type="number"
+                            value="${row[column.name]}"
+                            placeholder="?"
                             data-row="${i}"
-                            data-key="${key}"
+                            data-key="${column.name}"
                             oninput="updateCell(this)"
                         />
                     </td>
                 `;
+            } else if (column.type == "choice") {
+                const optionsHtml = column.options.map(option => {
+                    const isSelected = row[column.name] === option ? 'selected' : '';
+                    return `<option value="${option}" ${isSelected}>${option}</option>`;
+                }).join('');
+
+                tr += `
+                    <td>
+                        <select
+                            data-row="${i}"
+                            data-key="${column.name}"
+                            onchange="updateCell(this)"
+                        >
+                            <option value="" selected>
+                                ?
+                            </option>
+                            ${optionsHtml}
+                        </select>
+                    </td>
+                `; 
             }
         });
 
@@ -234,7 +417,7 @@ function downloadCSV() {
     }
 
     const csv = Papa.unparse(data, {
-        columns: HEADERS
+        columns: COLUMNS.forEach((column) => column.name)
     });
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
