@@ -13,15 +13,15 @@ FEATURE_COLUMNS = [
     "workclass",
     "fnlwgt",
     "education",
-    "marital_status",
+    "marital.status",
     "occupation",
     "relationship",
     "race",
     "sex",
-    "capital_gain",
-    "capital_loss",
-    "hours_per_week",
-    "native_country"
+    "capital.gain",
+    "capital.loss",
+    "hours.per.week",
+    "native.country"
 ]
 
 
@@ -40,7 +40,7 @@ def safe_float(value):
     try:
         return float(value)
     except:
-        return 0.0
+        return None
 
 
 def transform(data):
@@ -53,16 +53,18 @@ def transform(data):
             row.get("workclass", ""),
             safe_float(row.get("fnlwgt")),
             row.get("education", ""),
-            row.get("marital_status", ""),
+            row.get("marital.status", ""),
             row.get("occupation", ""),
             row.get("relationship", ""),
             row.get("race", ""),
             row.get("sex", ""),
-            safe_float(row.get("capital_gain")),
-            safe_float(row.get("capital_loss")),
-            safe_float(row.get("hours_per_week")),
-            row.get("native_country", "")
+            safe_float(row.get("capital.gain")),
+            safe_float(row.get("capital.loss")),
+            safe_float(row.get("hours.per.week")),
+            row.get("native.country", "")
         ])
+
+    print(np.array(X))
 
     return np.array(X)
 
