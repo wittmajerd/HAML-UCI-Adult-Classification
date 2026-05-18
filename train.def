@@ -1,0 +1,19 @@
+Bootstrap: docker
+From: python:3.12.13-slim
+
+%files
+    mlflow_run.py /app/mlflow_run.py
+    pipeline.py /app/pipeline.py
+    requirements.txt /app/requirements.txt
+    ml-flow-test.py /app/ml-flow-test.py
+    data/. /app/data/
+
+    test.py /app/test.py
+
+%post
+    mkdir -p /app
+    pip install --no-cache-dir -r /app/requirements.txt
+
+%runscript
+    cd /app
+    python mlflow_run.py
