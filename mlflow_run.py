@@ -21,9 +21,10 @@ from pipeline import (
 )
 
 def ml_flow_train(adult_df: pd.DataFrame, config: dict):
-    mlflow.set_tracking_uri("http://host.docker.internal:5000") # <-- This line is if we are using the dev container
+    mlflow.set_tracking_uri("http://127.0.0.1:5859") # Run directly on HPC
+    #mlflow.set_tracking_uri("http://host.docker.internal:5000") # <-- This line is if we are using the dev container
     # mlflow.set_tracking_uri("http://localhost:5000") # <-- This line is if we are running the script locally
-    mlflow.set_experiment("Final models")
+    mlflow.set_experiment("Final models1")
     # Enable autologging for scikit-learn
     # mlflow.sklearn.autolog()
 

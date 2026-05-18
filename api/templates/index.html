@@ -29,8 +29,10 @@
         <label for="modelSelect">Válassz modellt</label>
 
         <select id="modelSelect">
-            <option value="baseline">Baseline modell</option>
-            <option value="fair">Fairness modell</option>
+            <option value="fairness_mode_NONE">Model with No action on sensitive attributes</option>
+            <option value="fairness_mode_DROP">Model with DROP sensitive attributes</option>
+            <option value="fairness_mode_MASK">Model with MASK sensitive attributes</option>
+            <option value="fairness_mode_REWEIGHT">Model with REWEIGHT sensitive attributes</option>
         </select>
 
     </section>

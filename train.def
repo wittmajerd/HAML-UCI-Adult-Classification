@@ -2,11 +2,13 @@ Bootstrap: docker
 From: python:3.12.13-slim
 
 %files
-    app.py /app/app.py
-    ../pipeline.py /app/pipeline.py
+    mlflow_run.py /app/mlflow_run.py
+    pipeline.py /app/pipeline.py
     requirements.txt /app/requirements.txt
-    templates/. /app/templates/
-    static/. /app/static/
+    ml-flow-test.py /app/ml-flow-test.py
+    data/. /app/data/
+
+    test.py /app/test.py
 
 %post
     mkdir -p /app
@@ -14,4 +16,4 @@ From: python:3.12.13-slim
 
 %runscript
     cd /app
-    python app.py
+    python mlflow_run.py
