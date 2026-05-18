@@ -285,11 +285,13 @@ function renderHeader(table) {
 
     let tr = "<tr>";
 
+    tr += "<th style='padding: 10px 20px;'>actions</th>";
+
     COLUMNS.forEach(column => {
-        tr += `<th>${column.name}</th>`;
+        tr += `<th style='padding: 10px 20px;'>${column.name}</th>`;
     });
 
-    tr += "<th>actions</th></tr>";
+    tr += "</tr>";
 
     table.innerHTML += tr;
 }
@@ -299,6 +301,14 @@ function renderRows(table) {
     data.forEach((row, i) => {
 
         let tr = "<tr>";
+
+        tr += `
+            <td>
+                <button class="deleteBtn" onclick="deleteRow(${i})">
+                    Törlés
+                </button>
+            </td>
+        `;
 
         COLUMNS.forEach(column => {
 
@@ -341,14 +351,6 @@ function renderRows(table) {
                 `; 
             }
         });
-
-        tr += `
-            <td>
-                <button class="deleteBtn" onclick="deleteRow(${i})">
-                    Törlés
-                </button>
-            </td>
-        `;
 
         tr += "</tr>";
 
