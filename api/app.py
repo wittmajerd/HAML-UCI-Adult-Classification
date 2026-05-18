@@ -43,7 +43,7 @@ def predict():
         X = pd.DataFrame(data)
         X = X.replace("", "?")
 
-        preds = model.predict(X) #np.ones(len(X))
+        preds = model.predict(X)[:, 1] #np.ones(len(X))
 
         return jsonify({
             "predictions": preds.tolist()
