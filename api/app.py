@@ -40,17 +40,26 @@ def predict():
         if not model:
             return jsonify({"error": "Model not found"}), 404
 
-        X = pd.DataFrame(data)
+        X = pd.DataFrame(X)
         X = X.replace("", "?")
 
         preds = model.predict(X)[:, 1] #np.ones(len(X))
-
         return jsonify({
             "predictions": preds.tolist()
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+def load_model(model_name: str):
+    try:
+        app.logger.info(f"Attempting to load model: {model_name}")
+        model_uri = f"models:/{model_name}@final"
+        app.logger.info(f"Loading model: {model_uri}")
+        return mlflow.pyfunc.load_model(model_uri)
+    except Exception as e:
+        app.logger.error(f"Failed to load model '{model_name}': {e}")
+        return None
     
 
 # =========================
