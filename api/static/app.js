@@ -365,8 +365,8 @@ function formatPrediction(value) {
 
     if (value === "" || value === undefined || value === null) return "";
 
-    return `<span class="badge ${value == 1 ? "badge-good" : "badge-bad"}">
-        ${value}
+    return `<span class="badge ${value >= 0.5 ? "badge-good" : "badge-bad"}">
+        ${value.toFixed(3)}
     </span>`;
 }
 
