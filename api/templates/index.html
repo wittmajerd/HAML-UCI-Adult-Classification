@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="hu">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Jövedelem Predikció</title>
+
+    <link rel="stylesheet" href="/static/styles.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+
+<body>
+
+    <!-- =========================
+         HEADER
+    ========================== -->
+    <h1>Népszámlálás alapú jövedelem predikció</h1>
+
+    <!-- =========================
+         MODEL SECTION
+    ========================== -->
+    <section class="form-group">
+
+        <h2>Modell</h2>
+
+        <label for="modelSelect">Válassz modellt</label>
+
+        <select id="modelSelect">
+            <option value="fairness_mode_NONE">Model with No action on sensitive attributes</option>
+            <option value="fairness_mode_DROP">Model with DROP sensitive attributes</option>
+            <option value="fairness_mode_MASK">Model with MASK sensitive attributes</option>
+            <option value="fairness_mode_REWEIGHT">Model with REWEIGHT sensitive attributes</option>
+        </select>
+
+    </section>
+
+    <h2>Adatok</h2>
+
+    <!-- =========================
+         TABLE
+    ========================== -->
+    <section class="table-container">
+
+        <table id="data">
+
+            <!-- JS generálja a teljes táblát -->
+            <tbody id="table-body">
+            </tbody>
+
+        </table>
+
+    </section>
+
+    <!-- =========================
+        FILE UPLOAD
+    ========================== -->
+    <section class="form-group">
+
+        <label for="upload-csv">CSV fájl feltöltése</label>
+
+        <input type="file" id="upload-csv" />
+
+    </section>
+
+    <!-- =========================
+        ACTION BUTTONS
+    ========================== -->
+    <section class="form-group" style="flex-direction: row; justify-content: space-between;">
+
+        <button id="addRowBtn">+ Sor hozzáadása</button>
+
+        <button id="predictBtn">Kiértékelés</button>
+
+        <button id="downloadBtn">CSV letöltése</button>
+
+    </section>
+
+    <!-- =========================
+         SCRIPT
+    ========================== -->
+    <script src="/static/app.js"></script>
+
+</body>
+
+</html>

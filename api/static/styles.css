@@ -1,0 +1,217 @@
+/* =========================
+   BASE
+========================= */
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f9;
+    margin: 0;
+    padding: 0;
+    color: #1f2937;
+}
+
+/* =========================
+   TITLES
+========================= */
+h1 {
+    text-align: center;
+    margin-top: 30px;
+    font-size: 26px;
+}
+
+h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #4b5563;
+}
+
+/* =========================
+   LAYOUT
+========================= */
+.form-group {
+    width: 95%;
+    margin: 20px auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* =========================
+   TABLE WRAPPER
+========================= */
+.table-container {
+    width: 95%;
+    margin: 0 auto;
+    max-height: 250px;
+    overflow-y: auto;
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* =========================
+   TABLE
+========================= */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+/* sticky header */
+thead th {
+    position: sticky;
+    top: 0;
+    background: #f3f4f6;
+    z-index: 2;
+}
+
+/* header cells */
+th {
+    padding: 12px;
+    text-align: left;
+    font-size: 13px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+/* body cells */
+td {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 8px;
+}
+
+/* hover row */
+tr:hover td {
+    background: #f9fafb;
+}
+
+/* input cells */
+td input {
+    width: 100%;
+    border: none;
+    padding: 6px;
+    outline: none;
+    background: transparent;
+}
+
+/* =========================
+   INPUTS
+========================= */
+input[type="file"] {
+    padding: 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: white;
+}
+
+/* select */
+select {
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+}
+
+/* =========================
+   BUTTON BASE
+========================= */
+button {
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+    width: fit-content;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+/* =========================
+   PRIMARY ACTIONS
+========================= */
+#addRowBtn {
+    background: #10b981;
+}
+
+#predictBtn {
+    background: #111827;
+}
+
+#predictBtn:hover {
+    background: #000000;
+}
+
+#downloadBtn {
+    background: #8b5e3c;
+}
+
+#downloadBtn:hover {
+    background: #6b4226;
+}
+
+/* =========================
+   DELETE
+========================= */
+.deleteBtn {
+    background: #ef4444;
+}
+
+.deleteBtn:hover {
+    background: #dc2626;
+}
+
+/* =========================
+   PREDICTION BADGE
+========================= */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.badge-good {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #22c55e;
+}
+
+.badge-bad {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 1000px) {
+
+    table {
+        font-size: 12px;
+    }
+
+    .form-group {
+        width: 100%;
+        padding: 0 10px;
+    }
+}
+
+
+/* =========================
+   FINE-TUNE
+========================= */
+input[type="file"] {
+    color: transparent;
+}
