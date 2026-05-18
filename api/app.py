@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, render_template
 import mlflow
 import mlflow.pyfunc
 import pandas as pd
+from pipeline import prepare_raw_df
 
 app = Flask(__name__)
 
@@ -40,8 +41,15 @@ def predict():
         if not model:
             return jsonify({"error": "Model not found"}), 404
 
-        X = pd.DataFrame(X)
+        X = pd.DataFrame(data)
         X = X.replace("", "?")
+        numeric_cols = ["age", "fnlwgt", "capital.gain", "capital.loss", "hours.per.week", "education.num"]
+        for col in numeric_cols:
+            if col in X.columns:
+                X[col] = pd.to_numeric(X[col], errors="coerce")
+
+        X = prepare_raw_df(X)
+        app.logger.info(f"Received data for prediction: {X.head()}")
 
         preds = model.predict(X)[:, 1] #np.ones(len(X))
         return jsonify({
