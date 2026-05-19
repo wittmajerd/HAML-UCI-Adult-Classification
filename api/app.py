@@ -2,6 +2,8 @@ import numpy as np
 from flask import Flask, request, jsonify, render_template
 import mlflow
 import mlflow.pyfunc
+import pandas as pd
+from pipeline import prepare_raw_df
 
 app = Flask(__name__)
 
@@ -10,65 +12,11 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 
 # =========================
-# FEATURES
-# =========================
-FEATURE_COLUMNS = [
-    "age",
-    "workclass",
-    "fnlwgt",
-    "education",
-    "marital_status",
-    "occupation",
-    "relationship",
-    "race",
-    "sex",
-    "capital_gain",
-    "capital_loss",
-    "hours_per_week",
-    "native_country"
-]
-
-
-# =========================
 # INDEX
 # =========================
 @app.route("/")
 def index():
     return render_template("index.html")
-
-
-# =========================
-# DATA TRANSFORM
-# =========================
-def safe_float(value):
-    try:
-        return float(value)
-    except:
-        return 0.0
-
-
-def transform(data):
-    X = []
-
-    for row in data:
-
-        X.append([
-            safe_float(row.get("age")),
-            row.get("workclass", ""),
-            safe_float(row.get("fnlwgt")),
-            row.get("education", ""),
-            row.get("marital_status", ""),
-            row.get("occupation", ""),
-            row.get("relationship", ""),
-            row.get("race", ""),
-            row.get("sex", ""),
-            safe_float(row.get("capital_gain")),
-            safe_float(row.get("capital_loss")),
-            safe_float(row.get("hours_per_week")),
-            row.get("native_country", "")
-        ])
-
-    return np.array(X)
 
 
 # =========================
@@ -93,11 +41,17 @@ def predict():
         if not model:
             return jsonify({"error": "Model not found"}), 404
 
-        X = transform(data)
-        prob_preds = model.predict(X) #np.ones(len(X))
-        threshold = 0.5
-        preds = (prob_preds >= threshold).astype(int)
-        app.logger.info(f"Making predictions with model '{model_name}' on {len(X)} samples")
+        X = pd.DataFrame(data)
+        X = X.replace("", "?")
+        numeric_cols = ["age", "fnlwgt", "capital.gain", "capital.loss", "hours.per.week", "education.num"]
+        for col in numeric_cols:
+            if col in X.columns:
+                X[col] = pd.to_numeric(X[col], errors="coerce")
+
+        X = prepare_raw_df(X)
+        app.logger.info(f"Received data for prediction: {X.head()}")
+
+        preds = model.predict(X)[:, 1] #np.ones(len(X))
         return jsonify({
             "predictions": preds.tolist()
         })

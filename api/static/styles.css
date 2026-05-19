@@ -215,3 +215,7 @@ button:hover {
 input[type="file"] {
     color: transparent;
 }
+
+td, th {
+  text-align: center;
+}
